@@ -1,27 +1,72 @@
 import sys
-import inspect
+from inspect import isgetsetdescriptor, ismemberdescriptor
+from collections import Iterable, Mapping
+
+
+DICT = '__dict__'
+SLOTS = '__slots__'
+
 
 def get_size(obj):
-    """Recursively finds size of objects in bytes"""
+    """
+    Iteratively computes the size of Python objects in bytes.
+
+    :param obj:
+    :return:
+    """
+
     size, queue, seen = 0, [obj], set()
+
     while queue:
         obj = queue.pop()
+        cls = obj.__class__
         obj_id = id(obj)
+
         if obj_id not in seen:
             size += sys.getsizeof(obj)
             seen.add(obj_id)
-            if hasattr(obj, '__dict__'):
-                for cls in obj.__class__.__mro__:
-                    if '__dict__' in cls.__dict__:
-                        d = cls.__dict__['__dict__']
-                        if inspect.isgetsetdescriptor(d) or inspect.ismemberdescriptor(d):
+
+            if DICT in cls.__dict__:
+                for cls_0 in cls.__mro__:
+                    if DICT in cls_0.__dict__:
+                        d = cls_0.__dict__['__dict__']
+
+                        if (isgetsetdescriptor(d)
+                                or ismemberdescriptor(d)):
                             queue.append(obj.__dict__)
                             queue.extend(obj.__dict__.keys())
                             queue.extend(obj.__dict__.values())
+
                         break
-            if isinstance(obj, dict):
-                queue.extend(obj.values())
-                queue.extend(obj.keys())
-            elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
-                queue.extend(obj)
+
+            elif SLOTS in cls.__dict__:
+                if issubclass(cls, tuple):
+                    if isinstance(obj, Iterable):
+                        queue.extend(obj)
+
+                else:
+                    for cls_0 in cls.__mro__:
+                        if hasattr(cls_0, '__slots__'):
+                            queue.append(cls_0.__slots__)
+
+                            if isinstance(cls_0.__slots__, str):
+                                queue.append(getattr(obj, cls_0.__slots__))
+
+                            else:
+                                for attr in cls_0.__slots__:
+                                    d = getattr(cls_0, attr)
+
+                                    if (isgetsetdescriptor(d)
+                                            or ismemberdescriptor(d)):
+                                        queue.append(getattr(obj, attr))
+
+            else:
+                if isinstance(obj, Mapping):
+                    queue.extend(obj.values())
+                    queue.extend(obj.keys())
+
+                elif (isinstance(obj, Iterable)
+                        and not isinstance(obj, (bytes, bytearray, str))):
+                    queue.extend(obj)
+
     return size
