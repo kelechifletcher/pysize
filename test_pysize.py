@@ -4,6 +4,7 @@ from collections import namedtuple
 
 import pysize
 
+
 class TestPysize(unittest.TestCase):
     def test_empty_list(self):
         empty_list = []
